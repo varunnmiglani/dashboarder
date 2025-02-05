@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Reviewers Leaderboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8 animate-fade-in">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">GitHub Reviewers Leaderboard</h1>
+            <p class="text-gray-600">Track top contributors across your repositories</p>
+        </div>
+
+        <!-- Token Input -->
+        <div class="max-w-xl mx-auto mb-8 glass-effect rounded-lg p-6 shadow-lg animate-fade-in">
+            <div class="relative">
+                <input type="password" 
+                       id="github-token" 
+                       class="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                       placeholder="Enter GitHub Token">
+                <i class="fas fa-key absolute right-3 top-3 text-gray-400"></i>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-wrap gap-4 mb-8 justify-center animate-fade-in">
+            <select id="time-range" 
+                    class="px-4 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm">
+                <option value="1">Past Month</option>
+                <option value="2">Past 2 Months</option>
+                <option value="3">Past 3 Months</option>
+            </select>
+            
+            <button onclick="fetchData()" 
+                    class="gradient-bg text-white px-6 py-2 rounded-lg shadow-lg hover:opacity-90 transition-all">
+                <i class="fas fa-sync-alt mr-2"></i>Fetch Data
+            </button>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loader" class="hidden text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div id="stats" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 animate-fade-in">
+            <div class="glass-effect rounded-lg p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-700">Total Reviewers</h3>
+                    <i class="fas fa-users text-indigo-500 text-xl"></i>
+                </div>
+                <p id="total-reviewers" class="text-3xl font-bold text-indigo-600 mt-2">0</p>
+            </div>
+            
+            <div class="glass-effect rounded-lg p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-700">Total Comments</h3>
+                    <i class="fas fa-comments text-purple-500 text-xl"></i>
+                </div>
+                <p id="total-comments" class="text-3xl font-bold text-purple-600 mt-2">0</p>
+            </div>
+            
+            <div class="glass-effect rounded-lg p-6 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-700">Total PRs</h3>
+                    <i class="fas fa-code-branch text-green-500 text-xl"></i>
+                </div>
+                <p id="total-prs" class="text-3xl font-bold text-green-600 mt-2">0</p>
+            </div>
+        </div>
+
+        <!-- Leaderboard Table -->
+        <div class="overflow-x-auto glass-effect rounded-lg shadow-lg animate-fade-in">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reviewer</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comments</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PRs Reviewed</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body" class="bg-white divide-y divide-gray-200">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            const token = document.getElementById('github-token').value;
+            if (!token) {
+                alert('Please enter a GitHub token');
+                return;
+            }
+
+            const months = document.getElementById('time-range').value;
+            const loader = document.getElementById('loader');
+            const tbody = document.getElementById('leaderboard-body');
+
+            loader.classList.remove('hidden');
+            tbody.innerHTML = '';
+
+            try {
+                const since = new Date();
+                since.setMonth(since.getMonth() - parseInt(months));
+
+                const headers = {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                };
+
+                const response = await fetch('https://api.github.com/search/issues?q=is:pr+is:closed+updated:>=' + since.toISOString(), {
+                    headers
+                });
+                const data = await response.json();
+
+                const reviewers = new Map();
+                let totalPRs = new Set();
+
+                for (const pr of data.items) {
+                    totalPRs.add(pr.number);
+                    const commentsResponse = await fetch(pr.comments_url, { headers });
+                    const comments = await commentsResponse.json();
+
+                    comments.forEach(comment => {
+                        const reviewer = comment.user.login;
+                        if (!reviewers.has(reviewer)) {
+                            reviewers.set(reviewer, { comments: 0, prs: new Set() });
+                        }
+                        reviewers.get(reviewer).comments++;
+                        reviewers.get(reviewer).prs.add(pr.number);
+                    });
+                }
+
+                const sortedReviewers = Array.from(reviewers.entries())
+                    .sort((a, b) => b[1].comments - a[1].comments);
+
+                // Update stats
+                document.getElementById('total-reviewers').textContent = reviewers.size;
+                document.getElementById('total-comments').textContent = 
+                    Array.from(reviewers.values()).reduce((sum, reviewer) => sum + reviewer.comments, 0);
+                document.getElementById('total-prs').textContent = totalPRs.size;
+
+                sortedReviewers.forEach((reviewer, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50 transition-colors';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reviewer[0]}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reviewer[1].comments}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${reviewer[1].prs.size}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+            } catch (error) {
+                alert('Error fetching data: ' + error.message);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
